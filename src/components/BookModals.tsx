@@ -1,5 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { X, BookOpen, Calendar, MapPin, Hash, Edit3, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  X,
+  BookOpen,
+  Calendar,
+  MapPin,
+  Hash,
+  Edit3,
+  Trash2,
+  CheckCircle2,
+  AlertTriangle,
+  Upload,
+  Image as ImageIcon,
+} from 'lucide-react';
 import {
   Book,
   BookCategory,
@@ -8,7 +20,7 @@ import {
   User,
   UserRole,
 } from '../types/library';
-import { BOOK_CATEGORIES, COVER_ASSETS } from '../data/seedData';
+import { BOOK_CATEGORIES } from '../data/seedData';
 import { BookCover } from './BookCover';
 import {
   deriveBookStatus,
@@ -326,10 +338,12 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
   const [pages, setPages] = useState(260);
   const [language, setLanguage] = useState('Indonesia');
   const [statusArchive, setStatusArchive] = useState(false);
-  const [coverImage, setCoverImage] = useState<string>(COVER_ASSETS.philosophy);
+  const [coverImage, setCoverImage] = useState<string>('');
+  const [coverFileName, setCoverFileName] = useState<string>('');
   const [accentTone, setAccentTone] = useState<Book['accentTone']>('sage');
   const [description, setDescription] = useState('');
   const [err, setErr] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (editingBook) {
@@ -345,6 +359,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
       setLanguage(editingBook.language);
       setStatusArchive(editingBook.status === BookStatus.ARSIP);
       setCoverImage(editingBook.coverImage || '');
+      setCoverFileName(editingBook.coverImage ? 'Sampul tersimpan' : '');
       setAccentTone(editingBook.accentTone);
       setDescription(editingBook.description);
     } else {
@@ -359,12 +374,70 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
       setPages(280);
       setLanguage('Indonesia');
       setStatusArchive(false);
-      setCoverImage(COVER_ASSETS.philosophy);
+      setCoverImage('');
+      setCoverFileName('');
       setAccentTone('sage');
       setDescription('');
     }
     setErr('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   }, [editingBook, isOpen]);
+
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const isJpg =
+      file.type === 'image/jpeg' ||
+      lowerName.endsWith('.jpg') ||
+      lowerName.endsWith('.jpeg');
+
+    if (!isJpg) {
+      setErr('Format file sampul harus JPG / JPEG (.jpg atau .jpeg).');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErr('Ukuran file sampul maksimal 10 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    setErr('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        const maxWidth = 480;
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const targetW = Math.round(img.width * scale);
+        const targetH = Math.round(img.height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          const compressedJpg = canvas.toDataURL('image/jpeg', 0.85);
+          setCoverImage(compressedJpg);
+        } else {
+          setCoverImage(dataUrl);
+        }
+        setCoverFileName(file.name);
+      };
+      img.onerror = () => {
+        setErr('Gagal membaca file gambar JPG. Silakan pilih file lain.');
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (!isOpen) return null;
 
@@ -544,19 +617,60 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-[#33251B] mb-1">
-                Ilustrasi Sampul
+                Sampul Buku (Format JPG)
               </label>
-              <select
-                value={coverImage}
-                onChange={(e) => setCoverImage(e.target.value)}
-                className="w-full px-3.5 py-2 text-sm bg-[#FAF7F2] border border-[#E5DDD0] rounded-lg focus:outline-none focus:border-[#4A6B53]"
-              >
-                <option value={COVER_ASSETS.philosophy}>Botani & Filsafat (Cream/Sage)</option>
-                <option value={COVER_ASSETS.architecture}>Arsitektur Klasik (Limestone)</option>
-                <option value={COVER_ASSETS.science}>Sains & Astrolab (Ivory)</option>
-                <option value={COVER_ASSETS.literature}>Lanskap Sastra (Gouache)</option>
-                <option value="">Sampul Tipografi Minimalis</option>
-              </select>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,image/jpeg"
+                onChange={handleCoverUpload}
+                className="hidden"
+                id="book-cover-upload"
+              />
+              <div className="flex items-center gap-3">
+                {coverImage ? (
+                  <div className="w-11 h-14 rounded-md overflow-hidden border border-[#E5DDD0] bg-[#FAF7F2] shrink-0">
+                    <img
+                      src={coverImage}
+                      alt="Pratinjau sampul buku"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-11 h-14 rounded-md border border-dashed border-[#C7BBAE] bg-[#FAF7F2] flex items-center justify-center text-[#5E4B3C] shrink-0">
+                    <ImageIcon className="w-4 h-4 opacity-70" />
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 text-xs font-medium text-[#33251B] bg-[#FAF7F2] hover:bg-[#F2ECE3] border border-[#E5DDD0] rounded-lg inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[#4A6B53]" />
+                      {coverImage ? 'Ganti Sampul (.jpg)' : 'Klik Upload Sampul'}
+                    </button>
+                    {coverImage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCoverImage('');
+                          setCoverFileName('');
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="px-2.5 py-2 text-[11px] font-medium text-[#B91C1C] hover:bg-[#FEF2F2] rounded-lg cursor-pointer whitespace-nowrap"
+                      >
+                        Hapus
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#5E4B3C] truncate">
+                    {coverFileName ? coverFileName : 'Hanya file .jpg / .jpeg'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="sm:col-span-2">
