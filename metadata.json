@@ -1,0 +1,6 @@
+{
+  "name": "Ilmie Library",
+  "description": "Aplikasi perpustakaan digital modern untuk Admin dan Member dengan manajemen koleksi buku, peminjaman dan pengembalian, monitoring transaksi realtime, statistik grafik, serta pelaporan otomatis PDF dan Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
